@@ -3,20 +3,58 @@
 <head>
   <meta charset="UTF-8">
   <title>Селфи-гость</title>
+  <style>
+    body {
+      font-family: sans-serif;
+      text-align: center;
+      background: #f2f2f2;
+      padding: 20px;
+    }
+    video {
+      width: 90%;
+      max-width: 400px;
+      border-radius: 10px;
+      margin-bottom: 10px;
+    }
+    #counter {
+      font-size: 24px;
+      margin: 10px 0;
+      color: #333;
+    }
+    button {
+      padding: 12px 24px;
+      font-size: 18px;
+      background-color: #007bff;
+      color: white;
+      border: none;
+      border-radius: 8px;
+      cursor: pointer;
+    }
+    button:disabled {
+      background-color: gray;
+    }
+  </style>
 </head>
 <body>
   <h2>Селфи-фото (25 кадров)</h2>
   <video id="video" autoplay playsinline></video>
+  <div id="counter">Осталось: 25</div>
   <button id="start">Старт</button>
 
   <script>
     const video = document.getElementById('video');
     const startBtn = document.getElementById('start');
-    const API_URL = 'https://script.google.com/macros/s/AKfycbzraYXgDX8VOQJToBN07jUb7BTSJReRrjZZRR-fI1rqqJQTCjOSVtNzls-snTUy7tPW/exec'; // <-- замени на свой
+    const counter = document.getElementById('counter');
+    const API_URL = 'https://script.google.com/macros/s/AKfycbzraYXgDX8VOQJToBN07jUb7BTSJReRrjZZRR-fI1rqqJQTCjOSVtNzls-snTUy7tPW/exec'; // замените на свой
 
     async function initCamera() {
-      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
-      video.srcObject = stream;
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        video.srcObject = stream;
+      } catch (e) {
+        alert('Не удалось получить доступ к камере');
+        console.error(e);
+      }
     }
 
     async function captureAndUpload() {
@@ -35,11 +73,17 @@
     }
 
     startBtn.onclick = async () => {
-      for (let i = 0; i < 25; i++) {
+      startBtn.disabled = true;
+      const totalShots = 25;
+
+      for (let i = 0; i < totalShots; i++) {
+        counter.textContent = `Осталось: ${totalShots - i}`;
         await captureAndUpload();
-        await new Promise(r => setTimeout(r, 1000)); // 1 секунда между кадрами
+        await new Promise(r => setTimeout(r, 1000)); // 1 секунда пауза
       }
-      alert("Готово! Все фото отправлены.");
+
+      counter.textContent = 'Готово! 🎉';
+      startBtn.disabled = false;
     };
 
     initCamera();
