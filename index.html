@@ -9,31 +9,55 @@
       text-align: center;
       background: #fafafa;
       padding: 30px;
+      margin: 0; /* Убираем стандартные отступы */
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      min-height: 100vh; /* Минимальная высота страницы на весь экран */
+    }
+    h1 {
+      color: #333;
+      margin-bottom: 20px;
     }
     video {
       width: 100%;
-      max-width: 400px;
+      max-width: 600px; /* Увеличил максимальную ширину видео */
       border-radius: 12px;
-      box-shadow: 0 0 10px rgba(0,0,0,0.2);
+      box-shadow: 0 0 15px rgba(0,0,0,0.25); /* Усилил тень */
+      background-color: #000; /* Черный фон для видео, пока камера не загрузилась */
+      display: block; /* Убираем лишние отступы под видео */
+      margin-bottom: 20px; /* Отступ от видео до счетчика/кнопки */
     }
     #counter {
-      font-size: 24px;
-      margin: 20px 0;
-      color: #333;
+      font-size: 28px; /* Увеличил размер шрифта */
+      margin: 25px 0; /* Увеличил отступы */
+      color: #0056b3; /* Синий цвет для счетчика */
       font-weight: bold;
+      text-shadow: 1px 1px 2px rgba(0,0,0,0.1); /* Добавил легкую тень тексту */
     }
     button {
-      padding: 12px 28px;
-      font-size: 18px;
-      background-color: #28a745;
+      padding: 15px 35px; /* Увеличил отступы кнопки */
+      font-size: 20px; /* Увеличил размер шрифта кнопки */
+      background-color: #007bff; /* Ярко-синяя кнопка */
       color: white;
       border: none;
-      border-radius: 8px;
+      border-radius: 10px; /* Увеличил скругление углов */
       cursor: pointer;
+      transition: background-color 0.3s ease, transform 0.1s ease; /* Плавный переход */
+      box-shadow: 0 4px 8px rgba(0,0,0,0.2); /* Тень для кнопки */
+    }
+    button:hover:enabled {
+      background-color: #0056b3; /* Темнее синий при наведении */
+      transform: translateY(-2px); /* Легкий эффект поднятия */
+    }
+    button:active:enabled {
+      transform: translateY(0); /* Эффект нажатия */
     }
     button:disabled {
       background-color: #aaa;
       cursor: not-allowed;
+      box-shadow: none; /* Убираем тень для отключенной кнопки */
     }
     .hidden {
       display: none;
@@ -47,55 +71,112 @@
 
   <div id="counter">Осталось фото: 25</div>
 
-  <button id="start">Старт</button>
+  <button id="captureBtn">Сделать фото</button>
 
   <script>
     const video = document.getElementById('video');
-    const startBtn = document.getElementById('start');
+    const captureBtn = document.getElementById('captureBtn'); // Переименовал ID для ясности
     const counter = document.getElementById('counter');
-    const API_URL = 'https://script.google.com/macros/s/AKfycbzraYXgDX8VOQJToBN07jUb7BTSJReRrjZZRR-fI1rqqJQTCjOSVtNzls-snTUy7tPW/exec'; // ← замени на свой URL
+    // !!! ВАЖНО: ЗАМЕНИТЕ ЭТОТ URL НА СВОЙ РЕАЛЬНЫЙ GOOGLE APPS SCRIPT URL !!!
+    const API_URL = 'https://script.google.com/macros/s/AKfycbzraYXgDX8VOQJToBN07jUb7BTSJReRrjZZRR-fI1rqqJQTCjOSVtNzls-snTUy7tPW/exec'; 
 
+    let photosTaken = 0;
+    const totalPhotos = 25;
+
+    // --- Функция инициализации камеры ---
     async function initCamera() {
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            width: { ideal: 1920 }, // Попытка получить Full HD ширину
+            height: { ideal: 1080 } // Попытка получить Full HD высоту
+            // frameRate: { ideal: 30 } // Можно также запросить конкретную частоту кадров
+          }
+        });
         video.srcObject = stream;
+        // Ожидаем, пока видео начнет воспроизводиться, чтобы получить актуальные размеры
+        await new Promise(resolve => video.onloadedmetadata = resolve);
+        console.log('Камера инициализирована с разрешением:', video.videoWidth, 'x', video.videoHeight);
+        captureBtn.disabled = false; // Включаем кнопку, если камера успешно инициализирована
       } catch (error) {
-        alert('Ошибка доступа к камере!');
-        console.error(error);
+        alert('Ошибка доступа к камере! Пожалуйста, разрешите доступ к камере.');
+        console.error('Ошибка инициализации камеры:', error);
+        captureBtn.disabled = true; // Отключаем кнопку, если нет доступа к камере
+        captureBtn.textContent = 'Камера недоступна';
       }
     }
 
+    // --- Функция захвата и загрузки фото ---
     async function captureAndUpload() {
+      // Отключаем кнопку, пока идет процесс захвата/загрузки
+      captureBtn.disabled = true;
+      captureBtn.textContent = 'Загрузка...';
+
       const canvas = document.createElement('canvas');
+      // Устанавливаем размеры canvas равными текущему разрешению видеопотока
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
       const ctx = canvas.getContext('2d');
-      ctx.drawImage(video, 0, 0);
-      const dataUrl = canvas.toDataURL('image/jpeg');
-      const base64 = dataUrl.replace(/^data:image\/jpeg;base64,/, '');
 
-      await fetch(API_URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'text/plain' },
-        body: base64
-      });
+      // Рисуем текущий кадр с видео на canvas
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+      // --- Применение фильтров для улучшения (опционально) ---
+      // Экспериментируйте с этими значениями.
+      // Применяем фильтр к контексту, затем перерисовываем видео на canvas.
+      // Порядок важен: сначала drawImage, затем filter, затем еще раз drawImage.
+      // Или применить filter ДО drawImage, но тогда filter будет применяться ко всему,
+      // что рисуется после. Здесь делаем после для ясности.
+      ctx.filter = 'contrast(105%) brightness(102%) saturate(105%)'; // Немного увеличиваем контраст, яркость, насыщенность
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height); // Перерисовываем с фильтром
+      ctx.filter = 'none'; // Важно сбросить фильтр, чтобы не повлиять на другие операции
+
+      // Получаем изображение в формате base64 с высоким качеством JPEG
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.95); // 0.95 = 95% качество JPEG
+      const base64 = dataUrl.replace(/^data:image\/jpeg;base64,/, ''); // Удаляем префикс
+
+      try {
+        // Отправляем base64 строку на ваш Google Apps Script
+        const response = await fetch(API_URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'text/plain' },
+          body: base64
+        });
+
+        if (!response.ok) {
+          console.error('Ошибка при загрузке фото:', response.statusText);
+          alert('Ошибка при загрузке фото. Попробуйте еще раз.');
+        } else {
+          console.log('Фото успешно загружено!');
+          photosTaken++; // Увеличиваем счетчик только после успешной загрузки
+          counter.textContent = `Осталось фото: ${totalPhotos - photosTaken}`; // Обновляем счетчик
+        }
+      } catch (error) {
+        console.error('Ошибка сети или сервера при загрузке фото:', error);
+        alert('Ошибка сети при загрузке фото. Проверьте подключение.');
+      } finally {
+        // Включаем кнопку обратно или завершаем процесс
+        if (photosTaken >= totalPhotos) {
+          counter.textContent = 'Готово! ✅ Все фото сделаны.';
+          captureBtn.textContent = 'Готово';
+          captureBtn.disabled = true; // Делаем кнопку неактивной окончательно
+        } else {
+          captureBtn.disabled = false; // Включаем кнопку снова для следующего снимка
+          captureBtn.textContent = 'Сделать фото';
+        }
+      }
     }
 
-    startBtn.addEventListener('click', async () => {
-      startBtn.disabled = true;
-      const total = 25;
+    // --- Обработчик клика по кнопке ---
+    captureBtn.addEventListener('click', captureAndUpload);
 
-      for (let i = 0; i < total; i++) {
-        counter.textContent = `Осталось фото: ${total - i}`;
-        await captureAndUpload();
-        await new Promise(r => setTimeout(r, 1000));
-      }
-
-      counter.textContent = 'Готово! ✅';
-      startBtn.classList.add('hidden'); // Скрываем кнопку после завершения
+    // --- Инициализация при загрузке страницы ---
+    document.addEventListener('DOMContentLoaded', () => {
+      initCamera();
+      counter.textContent = `Осталось фото: ${totalPhotos - photosTaken}`;
+      captureBtn.textContent = 'Сделать фото';
+      captureBtn.disabled = true; // Изначально кнопка отключена до инициализации камеры
     });
-
-    initCamera();
   </script>
 </body>
 </html>
