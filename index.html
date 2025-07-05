@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <title>Селфи-гость</title>
+</head>
+<body>
+  <h2>Селфи-фото (25 кадров)</h2>
+  <video id="video" autoplay playsinline></video>
+  <button id="start">Старт</button>
+
+  <script>
+    const video = document.getElementById('video');
+    const startBtn = document.getElementById('start');
+    const API_URL = 'https://script.google.com/macros/s/AKfycbzraYXgDX8VOQJToBN07jUb7BTSJReRrjZZRR-fI1rqqJQTCjOSVtNzls-snTUy7tPW/exec'; // <-- замени на свой
+
+    async function initCamera() {
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+      video.srcObject = stream;
+    }
+
+    async function captureAndUpload() {
+      const canvas = document.createElement('canvas');
+      canvas.width = video.videoWidth;
+      canvas.height = video.videoHeight;
+      canvas.getContext('2d').drawImage(video, 0, 0);
+      const dataUrl = canvas.toDataURL('image/jpeg');
+      const base64 = dataUrl.replace(/^data:image\/jpeg;base64,/, '');
+
+      await fetch(API_URL, {
+        method: 'POST',
+        body: base64,
+        headers: { 'Content-Type': 'text/plain' }
+      });
+    }
+
+    startBtn.onclick = async () => {
+      for (let i = 0; i < 25; i++) {
+        await captureAndUpload();
+        await new Promise(r => setTimeout(r, 1000)); // 1 секунда между кадрами
+      }
+      alert("Готово! Все фото отправлены.");
+    };
+
+    initCamera();
+  </script>
+</body>
+</html>
