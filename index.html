@@ -5,55 +5,63 @@
   <title>Селфи-гость</title>
   <style>
     body {
-      font-family: sans-serif;
+      font-family: Arial, sans-serif;
       text-align: center;
-      background: #f2f2f2;
-      padding: 20px;
+      background: #fafafa;
+      padding: 30px;
     }
     video {
-      width: 90%;
+      width: 100%;
       max-width: 400px;
-      border-radius: 10px;
-      margin-bottom: 10px;
+      border-radius: 12px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.2);
     }
     #counter {
       font-size: 24px;
-      margin: 10px 0;
+      margin: 20px 0;
       color: #333;
+      font-weight: bold;
     }
     button {
-      padding: 12px 24px;
+      padding: 12px 28px;
       font-size: 18px;
-      background-color: #007bff;
+      background-color: #28a745;
       color: white;
       border: none;
       border-radius: 8px;
       cursor: pointer;
     }
     button:disabled {
-      background-color: gray;
+      background-color: #aaa;
+      cursor: not-allowed;
+    }
+    .hidden {
+      display: none;
     }
   </style>
 </head>
 <body>
-  <h2>Селфи-фото (25 кадров)</h2>
+  <h1>Сделай 25 фото 📸</h1>
+
   <video id="video" autoplay playsinline></video>
-  <div id="counter">Осталось: 25</div>
+
+  <div id="counter">Осталось фото: 25</div>
+
   <button id="start">Старт</button>
 
   <script>
     const video = document.getElementById('video');
     const startBtn = document.getElementById('start');
     const counter = document.getElementById('counter');
-    const API_URL = 'https://script.google.com/macros/s/AKfycbzraYXgDX8VOQJToBN07jUb7BTSJReRrjZZRR-fI1rqqJQTCjOSVtNzls-snTUy7tPW/exec'; // замените на свой
+    const API_URL = 'https://script.google.com/macros/s/AKfycbzraYXgDX8VOQJToBN07jUb7BTSJReRrjZZRR-fI1rqqJQTCjOSVtNzls-snTUy7tPW/exec'; // ← замени на свой URL
 
     async function initCamera() {
       try {
         const stream = await navigator.mediaDevices.getUserMedia({ video: true });
         video.srcObject = stream;
-      } catch (e) {
-        alert('Не удалось получить доступ к камере');
-        console.error(e);
+      } catch (error) {
+        alert('Ошибка доступа к камере!');
+        console.error(error);
       }
     }
 
@@ -61,30 +69,31 @@
       const canvas = document.createElement('canvas');
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
-      canvas.getContext('2d').drawImage(video, 0, 0);
+      const ctx = canvas.getContext('2d');
+      ctx.drawImage(video, 0, 0);
       const dataUrl = canvas.toDataURL('image/jpeg');
       const base64 = dataUrl.replace(/^data:image\/jpeg;base64,/, '');
 
       await fetch(API_URL, {
         method: 'POST',
-        body: base64,
-        headers: { 'Content-Type': 'text/plain' }
+        headers: { 'Content-Type': 'text/plain' },
+        body: base64
       });
     }
 
-    startBtn.onclick = async () => {
+    startBtn.addEventListener('click', async () => {
       startBtn.disabled = true;
-      const totalShots = 25;
+      const total = 25;
 
-      for (let i = 0; i < totalShots; i++) {
-        counter.textContent = `Осталось: ${totalShots - i}`;
+      for (let i = 0; i < total; i++) {
+        counter.textContent = `Осталось фото: ${total - i}`;
         await captureAndUpload();
-        await new Promise(r => setTimeout(r, 1000)); // 1 секунда пауза
+        await new Promise(r => setTimeout(r, 1000));
       }
 
-      counter.textContent = 'Готово! 🎉';
-      startBtn.disabled = false;
-    };
+      counter.textContent = 'Готово! ✅';
+      startBtn.classList.add('hidden'); // Скрываем кнопку после завершения
+    });
 
     initCamera();
   </script>
