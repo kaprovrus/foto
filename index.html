@@ -9,12 +9,12 @@
       text-align: center;
       background: #fafafa;
       padding: 30px;
-      margin: 0; /* Убираем стандартные отступы */
+      margin: 0;
       display: flex;
       flex-direction: column;
       align-items: center;
       justify-content: center;
-      min-height: 100vh; /* Минимальная высота страницы на весь экран */
+      min-height: 100vh;
     }
     h1 {
       color: #333;
@@ -22,42 +22,59 @@
     }
     video {
       width: 100%;
-      max-width: 600px; /* Увеличил максимальную ширину видео */
+      max-width: 600px;
       border-radius: 12px;
-      box-shadow: 0 0 15px rgba(0,0,0,0.25); /* Усилил тень */
-      background-color: #000; /* Черный фон для видео, пока камера не загрузилась */
-      display: block; /* Убираем лишние отступы под видео */
-      margin-bottom: 20px; /* Отступ от видео до счетчика/кнопки */
+      box-shadow: 0 0 15px rgba(0,0,0,0.25);
+      background-color: #000;
+      display: block;
+      margin-bottom: 20px;
+    }
+    #camera-select-container { /* Новый контейнер для селекта */
+      margin-bottom: 20px;
+      text-align: left; /* Выравнивание текста внутри контейнера */
+      width: 100%;
+      max-width: 600px;
+      padding: 0 10px; /* Небольшой отступ по бокам */
+    }
+    #cameraSelect { /* Стили для выпадающего списка */
+      padding: 10px 15px;
+      font-size: 16px;
+      border-radius: 8px;
+      border: 1px solid #ccc;
+      background-color: white;
+      cursor: pointer;
+      width: 100%; /* Занимает всю доступную ширину контейнера */
+      box-sizing: border-box; /* Учитываем padding и border в ширине */
     }
     #counter {
-      font-size: 28px; /* Увеличил размер шрифта */
-      margin: 25px 0; /* Увеличил отступы */
-      color: #0056b3; /* Синий цвет для счетчика */
+      font-size: 28px;
+      margin: 25px 0;
+      color: #0056b3;
       font-weight: bold;
-      text-shadow: 1px 1px 2px rgba(0,0,0,0.1); /* Добавил легкую тень тексту */
+      text-shadow: 1px 1px 2px rgba(0,0,0,0.1);
     }
     button {
-      padding: 15px 35px; /* Увеличил отступы кнопки */
-      font-size: 20px; /* Увеличил размер шрифта кнопки */
-      background-color: #007bff; /* Ярко-синяя кнопка */
+      padding: 15px 35px;
+      font-size: 20px;
+      background-color: #007bff;
       color: white;
       border: none;
-      border-radius: 10px; /* Увеличил скругление углов */
+      border-radius: 10px;
       cursor: pointer;
-      transition: background-color 0.3s ease, transform 0.1s ease; /* Плавный переход */
-      box-shadow: 0 4px 8px rgba(0,0,0,0.2); /* Тень для кнопки */
+      transition: background-color 0.3s ease, transform 0.1s ease;
+      box-shadow: 0 4px 8px rgba(0,0,0,0.2);
     }
     button:hover:enabled {
-      background-color: #0056b3; /* Темнее синий при наведении */
-      transform: translateY(-2px); /* Легкий эффект поднятия */
+      background-color: #0056b3;
+      transform: translateY(-2px);
     }
     button:active:enabled {
-      transform: translateY(0); /* Эффект нажатия */
+      transform: translateY(0);
     }
     button:disabled {
       background-color: #aaa;
       cursor: not-allowed;
-      box-shadow: none; /* Убираем тень для отключенной кнопки */
+      box-shadow: none;
     }
     .hidden {
       display: none;
@@ -69,74 +86,105 @@
 
   <video id="video" autoplay playsinline></video>
 
+  <div id="camera-select-container" class="hidden">
+    <label for="cameraSelect" style="display: block; margin-bottom: 8px; font-weight: bold; color: #555;">Выберите камеру:</label>
+    <select id="cameraSelect"></select>
+  </div>
+
   <div id="counter">Осталось фото: 25</div>
 
   <button id="captureBtn">Сделать фото</button>
 
   <script>
     const video = document.getElementById('video');
-    const captureBtn = document.getElementById('captureBtn'); // Переименовал ID для ясности
+    const captureBtn = document.getElementById('captureBtn');
     const counter = document.getElementById('counter');
+    const cameraSelect = document.getElementById('cameraSelect'); // Новый элемент
+    const cameraSelectContainer = document.getElementById('camera-select-container'); // Новый элемент
+
     // !!! ВАЖНО: ЗАМЕНИТЕ ЭТОТ URL НА СВОЙ РЕАЛЬНЫЙ GOOGLE APPS SCRIPT URL !!!
     const API_URL = 'https://script.google.com/macros/s/AKfycbzraYXgDX8VOQJToBN07jUb7BTSJReRrjZZRR-fI1rqqJQTCjOSVtNzls-snTUy7tPW/exec'; 
 
     let photosTaken = 0;
     const totalPhotos = 25;
+    let currentStream = null; // Переменная для хранения текущего потока камеры
+
+    // --- Функция для получения списка доступных камер ---
+    async function getCameras() {
+      try {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const videoDevices = devices.filter(device => device.kind === 'videoinput');
+
+        cameraSelect.innerHTML = ''; // Очищаем список перед заполнением
+        if (videoDevices.length > 0) {
+          videoDevices.forEach(device => {
+            const option = document.createElement('option');
+            option.value = device.deviceId;
+            // Используем device.label, если оно доступно, иначе "Камера X"
+            option.textContent = device.label || `Камера ${videoDevices.indexOf(device) + 1}`;
+            cameraSelect.appendChild(option);
+          });
+          cameraSelectContainer.classList.remove('hidden'); // Показываем селект, если камер > 0
+        } else {
+          cameraSelectContainer.classList.add('hidden'); // Скрываем, если камер нет
+          console.warn('Видеокамеры не найдены.');
+        }
+      } catch (error) {
+        console.error('Ошибка при получении списка устройств:', error);
+        cameraSelectContainer.classList.add('hidden');
+      }
+    }
 
     // --- Функция инициализации камеры ---
-    async function initCamera() {
+    async function initCamera(deviceId) {
+      if (currentStream) { // Если есть активный поток, останавливаем его
+        currentStream.getTracks().forEach(track => track.stop());
+      }
+
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({
+        const constraints = {
           video: {
-            width: { ideal: 1920 }, // Попытка получить Full HD ширину
-            height: { ideal: 1080 } // Попытка получить Full HD высоту
-            // frameRate: { ideal: 30 } // Можно также запросить конкретную частоту кадров
+            width: { ideal: 1920 },
+            height: { ideal: 1080 },
+            deviceId: deviceId ? { exact: deviceId } : undefined // Используем deviceId, если он передан
           }
-        });
+        };
+
+        const stream = await navigator.mediaDevices.getUserMedia(constraints);
         video.srcObject = stream;
-        // Ожидаем, пока видео начнет воспроизводиться, чтобы получить актуальные размеры
+        currentStream = stream; // Сохраняем текущий поток
+
         await new Promise(resolve => video.onloadedmetadata = resolve);
         console.log('Камера инициализирована с разрешением:', video.videoWidth, 'x', video.videoHeight);
-        captureBtn.disabled = false; // Включаем кнопку, если камера успешно инициализирована
+        captureBtn.disabled = false;
       } catch (error) {
-        alert('Ошибка доступа к камере! Пожалуйста, разрешите доступ к камере.');
+        alert('Ошибка доступа к камере! Пожалуйста, разрешите доступ к камере или выберите другую.');
         console.error('Ошибка инициализации камеры:', error);
-        captureBtn.disabled = true; // Отключаем кнопку, если нет доступа к камере
+        captureBtn.disabled = true;
         captureBtn.textContent = 'Камера недоступна';
       }
     }
 
-    // --- Функция захвата и загрузки фото ---
+    // --- Функция захвата и загрузки фото (без изменений) ---
     async function captureAndUpload() {
-      // Отключаем кнопку, пока идет процесс захвата/загрузки
       captureBtn.disabled = true;
       captureBtn.textContent = 'Загрузка...';
 
       const canvas = document.createElement('canvas');
-      // Устанавливаем размеры canvas равными текущему разрешению видеопотока
       canvas.width = video.videoWidth;
       canvas.height = video.videoHeight;
       const ctx = canvas.getContext('2d');
 
-      // Рисуем текущий кадр с видео на canvas
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-      // --- Применение фильтров для улучшения (опционально) ---
-      // Экспериментируйте с этими значениями.
-      // Применяем фильтр к контексту, затем перерисовываем видео на canvas.
-      // Порядок важен: сначала drawImage, затем filter, затем еще раз drawImage.
-      // Или применить filter ДО drawImage, но тогда filter будет применяться ко всему,
-      // что рисуется после. Здесь делаем после для ясности.
-      ctx.filter = 'contrast(105%) brightness(102%) saturate(105%)'; // Немного увеличиваем контраст, яркость, насыщенность
-      ctx.drawImage(video, 0, 0, canvas.width, canvas.height); // Перерисовываем с фильтром
-      ctx.filter = 'none'; // Важно сбросить фильтр, чтобы не повлиять на другие операции
+      ctx.filter = 'contrast(105%) brightness(102%) saturate(105%)';
+      ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
+      ctx.filter = 'none';
 
-      // Получаем изображение в формате base64 с высоким качеством JPEG
-      const dataUrl = canvas.toDataURL('image/jpeg', 0.95); // 0.95 = 95% качество JPEG
-      const base64 = dataUrl.replace(/^data:image\/jpeg;base64,/, ''); // Удаляем префикс
+      const dataUrl = canvas.toDataURL('image/jpeg', 0.95);
+      const base64 = dataUrl.replace(/^data:image\/jpeg;base64,/, '');
 
       try {
-        // Отправляем base64 строку на ваш Google Apps Script
         const response = await fetch(API_URL, {
           method: 'POST',
           headers: { 'Content-Type': 'text/plain' },
@@ -148,34 +196,43 @@
           alert('Ошибка при загрузке фото. Попробуйте еще раз.');
         } else {
           console.log('Фото успешно загружено!');
-          photosTaken++; // Увеличиваем счетчик только после успешной загрузки
-          counter.textContent = `Осталось фото: ${totalPhotos - photosTaken}`; // Обновляем счетчик
+          photosTaken++;
+          counter.textContent = `Осталось фото: ${totalPhotos - photosTaken}`;
         }
       } catch (error) {
         console.error('Ошибка сети или сервера при загрузке фото:', error);
         alert('Ошибка сети при загрузке фото. Проверьте подключение.');
       } finally {
-        // Включаем кнопку обратно или завершаем процесс
         if (photosTaken >= totalPhotos) {
           counter.textContent = 'Готово! ✅ Все фото сделаны.';
           captureBtn.textContent = 'Готово';
-          captureBtn.disabled = true; // Делаем кнопку неактивной окончательно
+          captureBtn.disabled = true;
+          cameraSelect.disabled = true; // Отключаем выбор камеры после завершения
         } else {
-          captureBtn.disabled = false; // Включаем кнопку снова для следующего снимка
+          captureBtn.disabled = false;
           captureBtn.textContent = 'Сделать фото';
         }
       }
     }
 
+    // --- Обработчик изменения выбора камеры ---
+    cameraSelect.addEventListener('change', () => {
+      initCamera(cameraSelect.value); // Инициализируем камеру с выбранным deviceId
+    });
+
     // --- Обработчик клика по кнопке ---
     captureBtn.addEventListener('click', captureAndUpload);
 
     // --- Инициализация при загрузке страницы ---
-    document.addEventListener('DOMContentLoaded', () => {
-      initCamera();
+    document.addEventListener('DOMContentLoaded', async () => {
+      await getCameras(); // Сначала получаем список камер
+      if (cameraSelect.options.length > 0) {
+        await initCamera(cameraSelect.value); // Инициализируем первую камеру по умолчанию
+      } else {
+        captureBtn.disabled = true;
+        captureBtn.textContent = 'Камеры не найдены';
+      }
       counter.textContent = `Осталось фото: ${totalPhotos - photosTaken}`;
-      captureBtn.textContent = 'Сделать фото';
-      captureBtn.disabled = true; // Изначально кнопка отключена до инициализации камеры
     });
   </script>
 </body>
