@@ -26,6 +26,23 @@
       display: block;
       margin-bottom: 20px;
     }
+    #camera-select-container {
+      margin-bottom: 20px;
+      text-align: left;
+      width: 100%;
+      max-width: 600px;
+      padding: 0 10px;
+    }
+    #cameraSelect {
+      padding: 10px 15px;
+      font-size: 16px;
+      border-radius: 8px;
+      border: 1px solid #ccc;
+      background-color: white;
+      cursor: pointer;
+      width: 100%;
+      box-sizing: border-box;
+    }
     #counter { font-size: 28px; margin: 25px 0; color: #0056b3; font-weight: bold; }
     button {
       padding: 15px 35px;
@@ -40,11 +57,19 @@
     button:hover:enabled { background-color: #0056b3; transform: translateY(-2px); }
     button:active:enabled { transform: translateY(0); }
     button:disabled { background-color: #aaa; cursor: not-allowed; }
+    .hidden { display: none; }
   </style>
 </head>
 <body>
   <h1>Сделай 25 фото 📸</h1>
+
   <video id="video" autoplay playsinline></video>
+
+  <div id="camera-select-container" class="hidden">
+    <label for="cameraSelect" style="display: block; margin-bottom: 8px; font-weight: bold; color: #555;">Выберите камеру:</label>
+    <select id="cameraSelect"></select>
+  </div>
+
   <div id="counter">Осталось фото: 25</div>
   <button id="captureBtn">Сделать фото</button>
 
@@ -52,6 +77,8 @@
     const video = document.getElementById('video');
     const captureBtn = document.getElementById('captureBtn');
     const counter = document.getElementById('counter');
+    const cameraSelect = document.getElementById('cameraSelect');
+    const cameraSelectContainer = document.getElementById('camera-select-container');
 
     const API_URL = 'https://script.google.com/macros/s/AKfycbzraYXgDX8VOQJToBN07jUb7BTSJReRrjZZRR-fI1rqqJQTCjOSVtNzls-snTUy7tPW/exec';
 
@@ -61,14 +88,49 @@
 
     // Загружаем рамку (PNG с прозрачностью)
     const frameImg = new Image();
-    frameImg.src = 'frame.png'; // 👉 здесь твоя рамка
+    frameImg.src = 'frame.png'; // 👉 твоя рамка рядом с HTML
 
-    async function initCamera() {
-      if (currentStream) currentStream.getTracks().forEach(t => t.stop());
-      const stream = await navigator.mediaDevices.getUserMedia({ video: { width: { ideal: 1920 }, height: { ideal: 1080 } } });
-      video.srcObject = stream;
-      currentStream = stream;
-      await new Promise(r => video.onloadedmetadata = r);
+    async function getCameras() {
+      try {
+        const devices = await navigator.mediaDevices.enumerateDevices();
+        const videoDevices = devices.filter(device => device.kind === 'videoinput');
+
+        cameraSelect.innerHTML = '';
+        if (videoDevices.length > 0) {
+          videoDevices.forEach((device, i) => {
+            const option = document.createElement('option');
+            option.value = device.deviceId;
+            option.textContent = device.label || `Камера ${i + 1}`;
+            cameraSelect.appendChild(option);
+          });
+          cameraSelectContainer.classList.remove('hidden');
+        } else {
+          cameraSelectContainer.classList.add('hidden');
+        }
+      } catch (err) {
+        console.error('Ошибка при получении камер:', err);
+      }
+    }
+
+    async function initCamera(deviceId) {
+      if (currentStream) currentStream.getTracks().forEach(track => track.stop());
+
+      try {
+        const stream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            width: { ideal: 1920 },
+            height: { ideal: 1080 },
+            deviceId: deviceId ? { exact: deviceId } : undefined
+          }
+        });
+        video.srcObject = stream;
+        currentStream = stream;
+        await new Promise(res => video.onloadedmetadata = res);
+        captureBtn.disabled = false;
+      } catch (err) {
+        console.error('Ошибка инициализации камеры:', err);
+        captureBtn.disabled = true;
+      }
     }
 
     async function captureAndUpload() {
@@ -80,15 +142,14 @@
       canvas.height = video.videoHeight;
       const ctx = canvas.getContext('2d');
 
-      // 1. Рисуем фото
+      // 1. Фото
       ctx.drawImage(video, 0, 0, canvas.width, canvas.height);
 
-      // 2. Если рамка загружена — рисуем поверх
+      // 2. Рамка
       if (frameImg.complete) {
         ctx.drawImage(frameImg, 0, 0, canvas.width, canvas.height);
       }
 
-      // 3. Отправляем на сервер
       const dataUrl = canvas.toDataURL('image/jpeg', 0.95);
       const base64 = dataUrl.replace(/^data:image\/jpeg;base64,/, '');
 
@@ -103,6 +164,7 @@
           counter.textContent = 'Готово! ✅';
           captureBtn.disabled = true;
           captureBtn.textContent = 'Завершено';
+          cameraSelect.disabled = true;
         } else {
           captureBtn.disabled = false;
           captureBtn.textContent = 'Сделать фото';
@@ -110,8 +172,22 @@
       }
     }
 
+    cameraSelect.addEventListener('change', () => {
+      initCamera(cameraSelect.value);
+    });
+
     captureBtn.addEventListener('click', captureAndUpload);
-    document.addEventListener('DOMContentLoaded', initCamera);
+
+    document.addEventListener('DOMContentLoaded', async () => {
+      await getCameras();
+      if (cameraSelect.options.length > 0) {
+        await initCamera(cameraSelect.value);
+      } else {
+        captureBtn.disabled = true;
+        captureBtn.textContent = 'Камеры не найдены';
+      }
+      counter.textContent = `Осталось фото: ${totalPhotos - photosTaken}`;
+    });
   </script>
 </body>
 </html>
